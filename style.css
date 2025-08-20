@@ -1,131 +1,29 @@
-body {
-  margin: 0;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  min-height: 100vh;
+:root{
+	--bg:#0b0e13; --panel:#121825; --muted:#7c8aa5; --accent:#51a8ff; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
 }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; background:#000; color:#e6eefc; font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+#app{display:grid; grid-template-columns: 340px 1fr; grid-template-rows: 100vh;}
+#panel{background:var(--panel); padding:18px; border-right:1px solid #1c2436; overflow:auto}
+h1{margin:0 0 8px; font-size:20px; font-weight:800}
+.sub{color:var(--muted); font-size:13px; margin-bottom:14px}
+.row{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0}
+.btn{appearance:none; border:1px solid #2a3550; background:#1a2236; color:#e6eefc; padding:8px 10px; border-radius:12px; font-weight:600; cursor:pointer; transition:.15s transform,.15s background}
+.btn:hover{background:#213052}
+.btn:active{transform:translateY(1px)}
+.btn.ok{border-color:#1f7a46; background:#153022}
+.btn.warn{border-color:#6b4d10; background:#2a220f}
+.btn.accent{border-color:#2b78c5; background:#11243a}
+.kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; padding:2px 6px; border:1px solid #2a3550; background:#0f1524; border-radius:6px}
+textarea, input{width:100%; background:#0f1524; border:1px solid #2a3550; color:#e6eefc; padding:10px; border-radius:12px}
+label{font-size:12px; color:var(--muted)}
+#log{height:110px}
+#canvas-wrap{position:relative;}
+#overlay{position:absolute; top:12px; right:12px; display:none; gap:8px;}
+#fps{position:absolute; left:12px; bottom:12px; font-size:12px; color:#9fb5d6; display:none}
+.grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.section{border-top:1px dashed #263251; margin-top:10px; padding-top:10px}
+.hint{font-size:12px; color:#9fb5d6}
+a{color:#8ec5ff}
 
-h1 {
-  text-align: center;
-  margin-bottom: 20px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
-
-#cube-container {
-  width: 100%;
-  height: 80vh;
-  border: 2px solid #fff;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-  background: #222;
-  position: relative;
-}
-
-/* Loading spinner */
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 20px auto;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.controls {
-  text-align: center;
-  background: rgba(255,255,255,0.1);
-  padding: 20px;
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px); /* Safari support */
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-}
-
-button {
-  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  margin: 0 5px;
-  border-radius: 25px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  min-width: 80px;
-}
-
-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-  background: linear-gradient(45deg, #ff5252, #d84315);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Add success state for solve button */
-button[onclick="solveCube()"] {
-  background: linear-gradient(45deg, #4caf50, #2e7d32);
-}
-
-button[onclick="solveCube()"]:hover {
-  background: linear-gradient(45deg, #45a049, #1b5e20);
-}
-
-.controls p {
-  margin: 8px 0;
-  font-size: 14px;
-}
-
-.controls p:first-of-type {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-}
-
-.move-counter {
-  background: rgba(255,255,255,0.15);
-  padding: 15px;
-  border-radius: 8px;
-  margin: 15px 0;
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.keyboard-help {
-  background: rgba(255,255,255,0.1);
-  padding: 15px;
-  border-radius: 8px;
-  margin-top: 15px;
-}
-
-.keyboard-help p {
-  margin: 5px 0;
-  font-size: 13px;
-}
-
-.key {
-  background: rgba(255,255,255,0.2);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-weight: bold;
-}

@@ -1,661 +1,314 @@
-// Add a simple test function to verify Three.js is working
-function testThreeJS() {
-  try {
-    console.log('Testing Three.js functionality...');
-    
-    if (typeof THREE === 'undefined') {
-      console.error('THREE is not defined!');
-      return false;
-    }
-    
-    // Test basic Three.js objects
-    const testScene = new THREE.Scene();
-    const testCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-    const testRenderer = new THREE.WebGLRenderer();
-    
-    console.log('Basic Three.js objects created successfully');
-    console.log('Scene:', testScene);
-    console.log('Camera:', testCamera);
-    console.log('Renderer:', testRenderer);
-    
-    return true;
-  } catch (error) {
-    console.error('Three.js test failed:', error);
-    return false;
-  }
+import * as THREE from 'three';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+// =====================
+// Rubik's Cube Engine
+// =====================
+const EPS = 1e-4; // tolerance when selecting layer cubies
+const SIZE = 3;    // 3x3x3 cube
+const CUBIE_GAP = 0.04; // small gap to see separation
+const FACE = { R: 'x=+1', L: 'x=-1', U: 'y=+1', D: 'y=-1', F: 'z=+1', B: 'z=-1' };
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const wrapEl = document.getElementById('canvas-wrap');
+const wrapRect = wrapEl.getBoundingClientRect();
+const initialWidth = Math.max(200, Math.floor(wrapRect.width || window.innerWidth));
+const initialHeight = Math.max(200, Math.floor(wrapRect.height || window.innerHeight));
+renderer.setSize(initialWidth, initialHeight);
+wrapEl.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(45, initialWidth/initialHeight, 0.1, 100);
+camera.position.set(6, 6, 6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 4; controls.maxDistance = 16;
+
+// Lighting
+const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 1.0);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 0.6); key.position.set(4,8,6); scene.add(key);
+const rim = new THREE.DirectionalLight(0x88aaff, 0.4); rim.position.set(-6,-4,-8); scene.add(rim);
+
+// Ground grid removed for clean look
+
+// Cube root container
+const cubeRoot = new THREE.Group();
+scene.add(cubeRoot);
+
+// Materials for face stickers in order: +X (R), -X (L), +Y (U), -Y (D), +Z (F), -Z (B)
+const col = { R: 0xff3b30, L: 0xf97316, U: 0xffffff, D: 0xffdd00, F: 0x34c759, B: 0x0a84ff };
+const stickerMat = {
+	R: new THREE.MeshBasicMaterial({ color: col.R, side: THREE.DoubleSide }),
+	L: new THREE.MeshBasicMaterial({ color: col.L, side: THREE.DoubleSide }),
+	U: new THREE.MeshBasicMaterial({ color: col.U, side: THREE.DoubleSide }),
+	D: new THREE.MeshBasicMaterial({ color: col.D, side: THREE.DoubleSide }),
+	F: new THREE.MeshBasicMaterial({ color: col.F, side: THREE.DoubleSide }),
+	B: new THREE.MeshBasicMaterial({ color: col.B, side: THREE.DoubleSide })
+};
+const plasticMat = new THREE.MeshPhongMaterial({ color: 0x11151f, shininess: 40 });
+
+// Data structure for cubies
+/** cubie = { mesh:THREE.Group, pos:[i,j,k] integer coords in {-1,0,1} } */
+const cubies = [];
+
+// Build all cubies
+function makeCubie(i,j,k){
+	const g = new THREE.Group();
+
+	// Base black cube
+	const geom = new THREE.BoxGeometry(1 - CUBIE_GAP, 1 - CUBIE_GAP, 1 - CUBIE_GAP);
+	const base = new THREE.Mesh(geom, plasticMat);
+	g.add(base);
+
+	// Add stickers: small planes slightly above each face
+	const s = 0.9; // sticker size
+	const t = 0.005; // sticker lift
+
+	function addSticker(face){
+		const sg = new THREE.PlaneGeometry(s, s);
+		const sm = stickerMat[face];
+		const m = new THREE.Mesh(sg, sm);
+		if(face==='R'){ m.position.x = 0.5 + t; m.rotation.y = -Math.PI/2; }
+		if(face==='L'){ m.position.x = -0.5 - t; m.rotation.y =  Math.PI/2; }
+		if(face==='U'){ m.position.y = 0.5 + t; m.rotation.x =  Math.PI/2; }
+		if(face==='D'){ m.position.y = -0.5 - t; m.rotation.x = -Math.PI/2; }
+		if(face==='F'){ m.position.z = 0.5 + t; }
+		if(face==='B'){ m.position.z = -0.5 - t; m.rotation.y =  Math.PI; }
+		g.add(m);
+	}
+
+	if(i===+1) addSticker('R');
+	if(i===-1) addSticker('L');
+	if(j===+1) addSticker('U');
+	if(j===-1) addSticker('D');
+	if(k===+1) addSticker('F');
+	if(k===-1) addSticker('B');
+
+	g.position.set(i, j, k);
+	return g;
 }
 
-// Call test function when script loads
-console.log('Script.js loaded, testing Three.js...');
-if (typeof THREE !== 'undefined') {
-  testThreeJS();
-} else {
-  console.log('THREE not available yet, will test later');
+for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++) for(let k=-1;k<=1;k++){
+	const mesh = makeCubie(i,j,k);
+	cubeRoot.add(mesh);
+	cubies.push({ mesh, pos:[i,j,k], home:[i,j,k] });
 }
 
-let scene, camera, renderer, controls;
-let cubeGroup; // Will be initialized after Three.js loads
-let cubes = []; // Store individual cubes for proper face rotation
-let moveCount = 0; // Track actual moves
-let isAnimating = false; // Prevent moves during animation
-let lastMove = null; // Track last move for prime notation
+// Animation and move queue
+// queue element: { mv:string, log:boolean }
+const queue = [];
+let isAnimating = false;
+const SPEED = 380; // degrees per second
 
-// Remove automatic initialization since it's now handled by the loading script
-// document.addEventListener('DOMContentLoaded', function() {
-//   init();
-//   animate();
-// });
-
-function init() {
-  try {
-    // Check if Three.js is loaded
-    if (typeof THREE === 'undefined') {
-      console.error('Three.js not loaded!');
-      document.getElementById('loading').innerHTML = '<p style="color: red;">Error: Three.js library failed to load. Please refresh the page.</p>';
-      return;
-    }
-
-    console.log('Three.js loaded successfully');
-
-    // Initialize cube group after Three.js is loaded
-    cubeGroup = new THREE.Group();
-    cubes = []; // Reset cubes array
-
-    // Scene
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a2e);
-
-    // Camera - adjusted position to better view the cube
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(5, 5, 5);
-    camera.lookAt(0, 0, 0);
-
-    // Renderer with improved settings
-    renderer = new THREE.WebGLRenderer({ 
-      antialias: true, 
-      alpha: true,
-      powerPreference: "high-performance"
-    });
-    renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    
-    // Check if container exists
-    const container = document.getElementById("cube-container");
-    if (!container) {
-      console.error('Cube container not found!');
-      return;
-    }
-    
-    container.appendChild(renderer.domElement);
-    console.log('Renderer added to container');
-
-    // Controls with improved settings
-    if (typeof THREE.OrbitControls !== 'undefined') {
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.screenSpacePanning = false;
-      controls.minDistance = 3;
-      controls.maxDistance = 20;
-      controls.maxPolarAngle = Math.PI;
-      console.log('OrbitControls loaded successfully');
-    } else {
-      console.warn('OrbitControls not loaded');
-    }
-
-    // Enhanced lighting system
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-    scene.add(ambientLight);
-    
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 7);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    scene.add(directionalLight);
-    
-    const pointLight = new THREE.PointLight(0xffffff, 0.5);
-    pointLight.position.set(-5, 5, -5);
-    scene.add(pointLight);
-    
-    console.log('Lights added to scene');
-
-    // Add a simple test cube to verify rendering
-    const testGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const testMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-    const testCube = new THREE.Mesh(testGeometry, testMaterial);
-    testCube.position.set(0, 0, 0);
-    scene.add(testCube);
-    console.log('Test cube added to scene');
-
-    // Build Rubik's cube (3x3x3 small cubes)
-    buildCube();
-
-    scene.add(cubeGroup);
-    console.log('Cube built successfully. Total cubes:', cubes.length);
-    console.log('Scene children:', scene.children.length);
-
-    // Remove loading screen
-    const loading = document.getElementById('loading');
-    if (loading) {
-      loading.style.display = 'none';
-    }
-
-    // Initialize UI elements
-    addSolveButton();
-    
-    // Resize
-    window.addEventListener("resize", onWindowResize);
-
-    // Keyboard moves
-    document.addEventListener("keydown", onKeyDown);
-    
-    // Start animation loop
-    animate();
-    
-    console.log('Initialization complete!');
-    
-  } catch (error) {
-    console.error('Error in init:', error);
-    document.getElementById('loading').innerHTML = '<p style="color: red;">Error initializing: ' + error.message + '</p>';
-  }
+function enqueueMoves(seq, options={}){
+	// parse like "R U R' U'" or ["R","U",...]
+	if(typeof seq === 'string') seq = seq.trim().split(/\s+/).filter(Boolean);
+	const shouldLog = options.log !== false;
+	for(const mv of seq) queue.push({ mv, log: shouldLog });
+	runQueue();
 }
 
-function buildCube() {
-  try {
-    console.log('Building cube...');
-    console.log('cubeGroup exists:', !!cubeGroup);
-    console.log('THREE exists:', typeof THREE !== 'undefined');
-    
-    if (!cubeGroup) {
-      console.error('cubeGroup is not initialized!');
-      return;
-    }
-    
-    cubeGroup.clear();
-    cubes = [];
-    
-    // Define colors for each face with better contrast
-    const colors = {
-      right: 0xff0000,   // Red
-      left: 0xff8c00,    // Orange (darker for better contrast)
-      top: 0xffffff,     // White
-      bottom: 0xffff00,  // Yellow
-      front: 0x00ff00,   // Green
-      back: 0x0066ff     // Blue (darker for better contrast)
-    };
-
-    // Create materials with better properties
-    const createMaterials = (x, y, z) => {
-      const materials = [];
-      
-      // Right face (positive X)
-      if (x === 1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.right, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-      
-      // Left face (negative X)
-      if (x === -1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.left, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-      
-      // Top face (positive Y)
-      if (y === 1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.top, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-      
-      // Bottom face (negative Y)
-      if (y === -1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.bottom, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-      
-      // Front face (positive Z)
-      if (z === 1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.front, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-      
-      // Back face (negative Z)
-      if (z === -1) {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: colors.back, 
-          shininess: 30,
-          specular: 0x444444
-        }));
-      } else {
-        materials.push(new THREE.MeshPhongMaterial({ 
-          color: 0x222222, 
-          shininess: 10,
-          specular: 0x111111
-        }));
-      }
-
-      return materials;
-    };
-
-    let cubeCount = 0;
-    for (let x = -1; x <= 1; x++) {
-      for (let y = -1; y <= 1; y++) {
-        for (let z = -1; z <= 1; z++) {
-          // Skip center cube (it's not visible in a real Rubik's cube)
-          if (x === 0 && y === 0 && z === 0) continue;
-          
-          const materials = createMaterials(x, y, z);
-          const cubeGeo = new THREE.BoxGeometry(0.95, 0.95, 0.95);
-          const cube = new THREE.Mesh(cubeGeo, materials);
-          
-          cube.position.set(x, y, z);
-          cube.userData = { x, y, z }; // Store position data
-          cube.castShadow = true;
-          cube.receiveShadow = true;
-          
-          cubeGroup.add(cube);
-          cubes.push(cube);
-          cubeCount++;
-        }
-      }
-    }
-    
-    console.log('Cube built with', cubeCount, 'small cubes');
-    console.log('Cube group children:', cubeGroup.children.length);
-    console.log('Cubes array length:', cubes.length);
-    
-  } catch (error) {
-    console.error('Error building cube:', error);
-    console.error('Error stack:', error.stack);
-  }
+function runQueue(){
+	if(isAnimating || queue.length===0) return;
+	const { mv, log } = queue.shift();
+	rotateLayerAnimated(mv, ()=>{ if(log) updateLog(mv); runQueue(); });
 }
 
-// Handle window resize
-function onWindowResize() {
-  camera.aspect = window.innerWidth / (window.innerHeight * 0.8);
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight * 0.8);
+function mvAxisLayer(m){
+	// returns {axis:'x'|'y'|'z', layerValue:-1|0|1, angle: +PI/2 or -PI/2 or PI}
+	const base = m[0];
+	const mod = m.length>1 ? m.slice(1) : '';
+
+	const map = {
+		'R':{axis:'x', layer: +1, dir:+1}, 'L':{axis:'x', layer:-1, dir:-1},
+		'U':{axis:'y', layer: +1, dir:+1}, 'D':{axis:'y', layer:-1, dir:-1},
+		'F':{axis:'z', layer: +1, dir:+1}, 'B':{axis:'z', layer:-1, dir:-1},
+	};
+	const info = map[base];
+	if(!info) throw new Error('Invalid move '+m);
+	let turns = 1;
+	let dir = info.dir;
+	if(mod==="'") dir = -dir;
+	if(mod==="2") turns = 2;
+
+	return { axis:info.axis, layerValue:info.layer, turns, dir };
 }
 
-// Render loop with improved controls
-function animate() {
-  requestAnimationFrame(animate);
-  
-  // Update controls for smooth movement
-  if (controls) {
-    controls.update();
-  }
-  
-  // Debug rendering
-  if (renderer && scene && camera) {
-    try {
-      renderer.render(scene, camera);
-      // Log first few frames to confirm rendering is working
-      if (window.frameCount === undefined) {
-        window.frameCount = 0;
-      }
-      if (window.frameCount < 5) {
-        console.log('Frame rendered:', window.frameCount, 'Scene children:', scene.children.length);
-        window.frameCount++;
-      }
-    } catch (error) {
-      console.error('Error in render:', error);
-    }
-  } else {
-    console.warn('Renderer, scene, or camera not ready:', {
-      renderer: !!renderer,
-      scene: !!scene,
-      camera: !!camera
-    });
-  }
+function selectLayerCubies(axis, layerValue){
+	const idx = axis==='x'?0:axis==='y'?1:2;
+	return cubies.filter(c=>Math.abs(c.mesh.position.getComponent(idx) - layerValue) < 0.5+EPS);
 }
 
-// Enhanced key moves with better handling
-function onKeyDown(e) {
-  if (isAnimating) return; // Prevent moves during animation
-  
-  let move = null;
-  let isPrime = false;
-  
-  switch (e.key.toUpperCase()) {
-    case "R": move = "right"; break;
-    case "L": move = "left"; break;
-    case "U": move = "up"; break;
-    case "D": move = "down"; break;
-    case "F": move = "front"; break;
-    case "B": move = "back"; break;
-    case "'": 
-      // Handle prime notation (counter-clockwise)
-      if (lastMove) {
-        move = lastMove;
-        isPrime = true;
-      }
-      break;
-    default: return;
-  }
-  
-  if (move) {
-    lastMove = move;
-    if (isPrime) {
-      // For prime moves, rotate 3 times clockwise = 1 time counter-clockwise
-      for (let i = 0; i < 3; i++) {
-        rotateFace(move);
-      }
-    } else {
-      rotateFace(move);
-    }
-    updateMoveCount();
-  }
+function rotateLayerState(layerCubies, axis, dir){
+	// Update the cubie's integer pos after a quarter turn
+	for(const c of layerCubies){
+		let [x,y,z] = c.pos;
+		if(axis==='x'){
+			// (y,z) -> ( -dir*z, dir*y ) for quarter turns
+			const ny = -dir*z; const nz = dir*y; y=ny; z=nz;
+		} else if(axis==='y'){
+			// (x,z) -> ( dir*z, -dir*x )
+			const nx = dir*z; const nz = -dir*x; x=nx; z=nz;
+		} else if(axis==='z'){
+			// (x,y) -> ( -dir*y, dir*x )
+			const nx = -dir*y; const ny = dir*x; x=nx; y=ny;
+		}
+		c.pos = [x,y,z];
+	}
 }
 
-// Improved face rotation function with smooth animations
-function rotateFace(face) {
-  if (isAnimating) return;
-  
-  isAnimating = true;
-  const angle = Math.PI / 2;
-  let axis, direction;
-  
-  switch (face) {
-    case "right":
-      axis = "x";
-      direction = 1;
-      break;
-    case "left":
-      axis = "x";
-      direction = -1;
-      break;
-    case "up":
-      axis = "y";
-      direction = 1;
-      break;
-    case "down":
-      axis = "y";
-      direction = -1;
-      break;
-    case "front":
-      axis = "z";
-      direction = 1;
-      break;
-    case "back":
-      axis = "z";
-      direction = -1;
-      break;
-  }
-  
-  // Create a temporary group for the face being rotated
-  const faceGroup = new THREE.Group();
-  
-  // Find all cubes that belong to this face
-  const faceCubes = [];
-  cubes.forEach(cube => {
-    const { x, y, z } = cube.userData;
-    let shouldInclude = false;
-    
-    switch (face) {
-      case "right":
-        shouldInclude = (x === 1);
-        break;
-      case "left":
-        shouldInclude = (x === -1);
-        break;
-      case "up":
-        shouldInclude = (y === 1);
-        break;
-      case "down":
-        shouldInclude = (y === -1);
-        break;
-      case "front":
-        shouldInclude = (z === 1);
-        break;
-      case "back":
-        shouldInclude = (z === -1);
-        break;
-    }
-    
-    if (shouldInclude) {
-      faceCubes.push(cube);
-      // Remove from original parent and add to face group
-      cubeGroup.remove(cube);
-      faceGroup.add(cube);
-    }
-  });
-  
-  // Animate the rotation
-  const startRotation = faceGroup.rotation[axis];
-  const targetRotation = startRotation + (angle * direction);
-  const duration = 300; // 300ms for smooth animation
-  const startTime = Date.now();
-  
-  function animateRotation() {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    
-    // Use easing function for smooth animation
-    const easedProgress = 1 - Math.pow(1 - progress, 3);
-    
-    faceGroup.rotation[axis] = startRotation + (easedProgress * angle * direction);
-    
-    if (progress < 1) {
-      requestAnimationFrame(animateRotation);
-    } else {
-      // Animation complete, update cube positions and userData
-      faceCubes.forEach(cube => {
-        const { x, y, z } = cube.userData;
-        let newX = x, newY = y, newZ = z;
-        
-        // Calculate new positions based on rotation
-        switch (face) {
-          case "right": // Rotate around X-axis
-            if (direction === 1) {
-              newY = -z;
-              newZ = y;
-            } else {
-              newY = z;
-              newZ = -y;
-            }
-            break;
-          case "left": // Rotate around X-axis
-            if (direction === 1) {
-              newY = z;
-              newZ = -y;
-            } else {
-              newY = -z;
-              newZ = y;
-            }
-            break;
-          case "up": // Rotate around Y-axis
-            if (direction === 1) {
-              newX = z;
-              newZ = -x;
-            } else {
-              newX = -z;
-              newZ = x;
-            }
-            break;
-          case "down": // Rotate around Y-axis
-            if (direction === 1) {
-              newX = -z;
-              newZ = x;
-            } else {
-              newX = z;
-              newZ = -x;
-            }
-            break;
-          case "front": // Rotate around Z-axis
-            if (direction === 1) {
-              newX = -y;
-              newY = x;
-            } else {
-              newX = y;
-              newY = -x;
-            }
-            break;
-          case "back": // Rotate around Z-axis
-            if (direction === 1) {
-              newX = y;
-              newY = -x;
-            } else {
-              newX = -y;
-              newY = x;
-            }
-            break;
-        }
-        
-        // Update cube data
-        cube.userData = { x: newX, y: newY, z: newZ };
-        cube.position.set(newX, newY, newZ);
-      });
-      
-      // Add the rotated face back to the main cube group
-      cubeGroup.add(faceGroup);
-      
-      // Clean up the temporary group
-      faceGroup.children.forEach(cube => {
-        faceGroup.remove(cube);
-        cubeGroup.add(cube);
-      });
-      
-      // Reset rotation
-      faceGroup.rotation[axis] = 0;
-      
-      isAnimating = false;
-      console.log(`Rotated ${face} face`);
-    }
-  }
-  
-  animateRotation();
+function rotateLayerAnimated(move, onDone){
+	const {axis, layerValue, turns, dir} = mvAxisLayer(move);
+	const layerCubies = selectLayerCubies(axis, layerValue);
+
+	// Create a temporary pivot for this layer
+	const pivot = new THREE.Group();
+	cubeRoot.add(pivot);
+
+	for(const c of layerCubies){
+		pivot.attach(c.mesh); // reparent under pivot
+	}
+
+	// How much to rotate per frame
+	const target = (Math.PI/2) * dir * turns;
+	let rotated = 0;
+	isAnimating = true;
+
+	let prevTs = undefined;
+	const step = (ts)=>{
+		if(prevTs===undefined) prevTs = ts;
+		const dt = (ts - prevTs) / 1000; // seconds
+		prevTs = ts;
+		const delta = dt * (Math.PI/180) * SPEED * Math.sign(target);
+		const remain = target - rotated;
+		const add = Math.abs(delta) > Math.abs(remain) ? remain : delta;
+		rotated += add;
+		if(axis==='x') pivot.rotation.x += add;
+		if(axis==='y') pivot.rotation.y += add;
+		if(axis==='z') pivot.rotation.z += add;
+
+		if(Math.abs(target - rotated) < 1e-6){
+			// Bake final transform by reparenting children BEFORE resetting pivot
+			for(const c of layerCubies){ cubeRoot.attach(c.mesh); }
+			cubeRoot.remove(pivot);
+
+			// Update integer state for each quarter turn
+			for(let t=0;t<turns;t++) rotateLayerState(layerCubies, axis, dir);
+
+			isAnimating = false;
+			if(onDone) onDone();
+			return;
+		}
+		requestAnimationFrame(step);
+	};
+	requestAnimationFrame(step);
 }
 
-// Update move counter
-function updateMoveCount() {
-  moveCount++;
-  const moveCountElement = document.getElementById('move-count');
-  if (moveCountElement) {
-    moveCountElement.textContent = moveCount;
-  }
+// Render loop
+let last = performance.now();
+function loop(ts){
+	const dt = (ts - last)/1000; last = ts;
+	controls.update();
+	renderer.render(scene, camera);
+	requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Responsive
+window.addEventListener('resize', ()=>{
+	const rect = wrapEl.getBoundingClientRect();
+	const w = Math.max(200, Math.floor(rect.width || (window.innerWidth - 340)));
+	const h = Math.max(200, Math.floor(rect.height || window.innerHeight));
+	renderer.setSize(w, h);
+	camera.aspect = w / h; camera.updateProjectionMatrix();
+});
+
+// UI / Keyboard
+const logEl = document.getElementById('log');
+const algEl = document.getElementById('alg');
+
+function updateLog(mv){
+	logEl.value += (logEl.value? ' ':'') + mv;
+	logEl.scrollTop = logEl.scrollHeight;
 }
 
-function scrambleCube() {
-  if (isAnimating) return;
-  
-  const moves = ["R", "L", "U", "D", "F", "B"];
-  const numMoves = 20; // More moves for better scrambling
-  
-  console.log('Scrambling cube...');
-  
-  for (let i = 0; i < numMoves; i++) {
-    const move = moves[Math.floor(Math.random() * moves.length)];
-    const isPrime = Math.random() > 0.5; // 50% chance of prime move
-    
-    setTimeout(() => {
-      if (isPrime) {
-        // For prime moves, rotate 3 times clockwise = 1 time counter-clockwise
-        for (let j = 0; j < 3; j++) {
-          rotateFace(move.toLowerCase());
-        }
-      } else {
-        rotateFace(move.toLowerCase());
-      }
-      updateMoveCount();
-    }, i * 100); // Stagger moves for visual effect
-  }
-}
+document.querySelectorAll('[data-mv]').forEach(btn=>{
+	btn.addEventListener('click', ()=> enqueueMoves([btn.dataset.mv]));
+});
 
-function resetCube() {
-  if (isAnimating) return;
-  
-  console.log('Resetting cube...');
-  
-  // Reset all cube rotations
-  cubeGroup.rotation.set(0, 0, 0);
-  
-  // Rebuild the cube to original state
-  buildCube();
-  
-  // Reset move counter
-  moveCount = 0;
-  updateMoveCount();
-  
-  console.log('Cube reset to solved state');
-}
+document.getElementById('play-seq').addEventListener('click', ()=>{
+	const seq = algEl.value.trim(); if(seq) enqueueMoves(seq);
+});
 
-// Basic solver algorithm
-function solveCube() {
-  if (isAnimating) return;
-  
-  console.log('Solving cube...');
-  isAnimating = true;
-  
-  // This is a simplified solver that just resets the cube
-  // In a real implementation, you'd analyze the current state
-  // and apply the reverse of the scramble sequence
-  
-  // For now, we'll just reset it
-  setTimeout(() => {
-    resetCube();
-    isAnimating = false;
-    console.log('Cube solved!');
-  }, 500);
-}
+document.getElementById('undo').addEventListener('click', ()=>{
+	if(isAnimating) return;
+	// Simple undo = inverse of last move (approx; does not collapse R2). For demonstration.
+	const txt = logEl.value.trim(); if(!txt) return;
+	const arr = txt.split(/\s+/); const last = arr.pop();
+	const inv = last.endsWith("'") ? last.slice(0,-1) : last.endsWith('2') ? last : last+"'";
+	logEl.value = arr.join(' ');
+	enqueueMoves([inv], { log:false });
+});
 
-// Check if cube is solved
-function isCubeSolved() {
-  // This is a simplified check - in reality you'd check each face
-  // For now, we'll assume it's solved if no moves have been made
-  return moveCount === 0;
-}
+document.getElementById('reset').addEventListener('click', ()=>{
+	// Reset scene to solved state
+	queue.length = 0; isAnimating = false; logEl.value='';
+	for(const c of cubies){
+		// Ensure each cubie is directly under the cube root (detach from any pivot)
+		cubeRoot.attach(c.mesh);
+		// Restore position/orientation and logical coordinates
+		c.pos = [...c.home];
+		c.mesh.rotation.set(0,0,0);
+		c.mesh.position.set(c.home[0], c.home[1], c.home[2]);
+	}
+	// Clean up any leftover empty pivot groups
+	for(const child of [...cubeRoot.children]){
+		if(!cubies.some(c=>c.mesh===child)) cubeRoot.remove(child);
+	}
+});
 
-// Add solve button functionality (if needed for dynamic addition)
-function addSolveButton() {
-  // This function is kept for potential future use
-  // Currently the solve button is added directly in HTML
-  console.log('Solve button functionality initialized');
+const MOVES = ['R','R\'','R2','L','L\'','L2','U','U\'','U2','D','D\'','D2','F','F\'','F2','B','B\'','B2'];
+function randomScramble(n=25){
+	const seq=[]; let lastAxis='';
+	const axisOf = m => ({R:'x','R\'':'x','R2':'x', L:'x','L\'':'x','L2':'x', U:'y','U\'':'y','U2':'y', D:'y','D\'':'y','D2':'y', F:'z','F\'':'z','F2':'z', B:'z','B\'':'z','B2':'z'})[m];
+	while(seq.length<n){
+		const m = MOVES[Math.floor(Math.random()*MOVES.length)];
+		const ax = axisOf(m);
+		if(ax===lastAxis) continue; // avoid same-axis consecutive moves
+		seq.push(m); lastAxis = ax;
+	}
+	return seq;
 }
+document.getElementById('scramble').addEventListener('click', ()=>{
+	const seq = randomScramble(25); algEl.value = seq.join(' '); enqueueMoves(seq);
+});
+
+// Keyboard handler: R, L, U, D, F, B with optional ' or 2
+window.addEventListener('keydown', (e)=>{
+	if(isAnimating) return; // avoid stacking during animation from keyboard
+	const key = e.key.toLowerCase();
+	const prime = e.shiftKey; // Shift+key = prime
+	if('rludfb'.includes(key)){
+		const mv = key.toUpperCase() + (prime?"'":'');
+		enqueueMoves([mv]);
+	} else if(e.key==='2'){
+		// apply double turn for last axis key pressed (look at last char in log or alg focus)
+		// simpler: if an axis key is down, ignore here; provide UI buttons for exact 2-turns
+	}
+});
+
+// FPS meter (simple)
+const fpsEl = document.getElementById('fps');
+let frames=0, acc=0, lastT=performance.now();
+function fpsTick(){
+	const now = performance.now();
+	frames++; acc += now-lastT; lastT = now;
+	if(acc>1000){ fpsEl.textContent = `${frames} FPS`; frames=0; acc=0; }
+	requestAnimationFrame(fpsTick);
+}
+requestAnimationFrame(fpsTick);

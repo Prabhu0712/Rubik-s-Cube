@@ -1,208 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Rubik's Cube - Computer Graphics Project</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🧩 3D Rubik's Cube – Three.js</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' ry='16' fill='%231a2236'/%3E%3Crect x='10' y='10' width='35' height='35' fill='%2351a8ff'/%3E%3Crect x='55' y='10' width='35' height='35' fill='%2322c55e'/%3E%3Crect x='10' y='55' width='35' height='35' fill='%23f59e0b'/%3E%3Crect x='55' y='55' width='35' height='35' fill='%23ef4444'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>3D Rubik's Cube</h1>
-  <div id="cube-container">
-    <div id="loading" style="text-align: center; padding: 50px; color: white;">
-      <p>Loading 3D Rubik's Cube...</p>
-      <div class="spinner"></div>
-      <p id="loading-status" style="font-size: 14px; margin-top: 20px; opacity: 0.8;">Initializing...</p>
-    </div>
+  <div id="app">
+    <aside id="panel">
+      <h1>🧩 3D Rubik's Cube</h1>
+      <div class="sub">Computer Graphics project – interactive layer rotations with animation, scramble & algorithm playback. Ready for GitHub Pages.</div>
+
+      <div class="row">
+        <button class="btn" data-mv="R">R</button>
+        <button class="btn" data-mv="R'">R'</button>
+        <button class="btn" data-mv="R2">R2</button>
+        <button class="btn" data-mv="L">L</button>
+        <button class="btn" data-mv="L'">L'</button>
+        <button class="btn" data-mv="L2">L2</button>
+      </div>
+      <div class="row">
+        <button class="btn" data-mv="U">U</button>
+        <button class="btn" data-mv="U'">U'</button>
+        <button class="btn" data-mv="U2">U2</button>
+        <button class="btn" data-mv="D">D</button>
+        <button class="btn" data-mv="D'">D'</button>
+        <button class="btn" data-mv="D2">D2</button>
+      </div>
+      <div class="row">
+        <button class="btn" data-mv="F">F</button>
+        <button class="btn" data-mv="F'">F'</button>
+        <button class="btn" data-mv="F2">F2</button>
+        <button class="btn" data-mv="B">B</button>
+        <button class="btn" data-mv="B'">B'</button>
+        <button class="btn" data-mv="B2">B2</button>
+      </div>
+
+      <div class="row section">
+        <button class="btn accent" id="scramble">Scramble (25)</button>
+        <button class="btn ok" id="reset">Reset</button>
+        <button class="btn warn" id="undo">Undo</button>
+        <button class="btn" id="play-seq">Play Algorithm</button>
+      </div>
+
+      <div class="section">
+        <label for="alg">Algorithm (space-separated, e.g. <span class="kbd">R U R' U'</span>)</label>
+        <textarea id="alg" rows="3" placeholder="R U R' U'"></textarea>
+        <div class="hint">Keyboard: <span class="kbd">R L U D F B</span> add <span class="kbd">'</span> for prime (e.g. <span class="kbd">Shift</span>+<span class="kbd">r</span>), <span class="kbd">2</span> for double. Mouse drag to orbit, <span class="kbd">scroll</span> to zoom.</div>
+      </div>
+
+      <div class="section">
+        <label for="log">Move Log</label>
+        <textarea id="log" readonly></textarea>
+      </div>
+
+      <div class="section hint">
+        <div><strong>Notes</strong></div>
+        <ul>
+          <li>True layer rotations (not whole-cube). Cubies are regrouped per move and state is updated.</li>
+          <li>Clean animation with easing. Robust floating-point tolerances.</li>
+          <li>Use this page as-is on GitHub Pages (single HTML file).</li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="canvas-wrap">
+      <div id="overlay"></div>
+      <div id="fps"></div>
+    </main>
   </div>
-  <div class="controls">
-    <div class="move-counter">
-      Moves: <span id="move-count">0</span>
-    </div>
-    
-    <button onclick="scrambleCube()">Scramble</button>
-    <button onclick="resetCube()">Reset</button>
-    <button onclick="solveCube()">Solve</button>
-    
-    <p>Use mouse drag to rotate view</p>
-    
-    <div class="keyboard-help">
-      <p><strong>Keyboard moves:</strong></p>
-      <p><span class="key">R</span> (right clockwise) | <span class="key">R</span> + <span class="key">'</span> (right counter-clockwise)</p>
-      <p><span class="key">L</span> (left clockwise) | <span class="key">L</span> + <span class="key">'</span> (left counter-clockwise)</p>
-      <p><span class="key">U</span> (up clockwise) | <span class="key">U</span> + <span class="key">'</span> (up counter-clockwise)</p>
-      <p><span class="key">D</span> (down clockwise) | <span class="key">D</span> + <span class="key">'</span> (down counter-clockwise)</p>
-      <p><span class="key">F</span> (front clockwise) | <span class="key">F</span> + <span class="key">'</span> (front counter-clockwise)</p>
-      <p><span class="key">B</span> (back clockwise) | <span class="key">B</span> + <span class="key">'</span> (back counter-clockwise)</p>
-    </div>
-  </div>
-  
-  <!-- Load Three.js from reliable CDN with fallback -->
-  <script>
-    // Function to update loading status
-    function updateLoadingStatus(message) {
-      const statusElement = document.getElementById('loading-status');
-      if (statusElement) {
-        statusElement.textContent = message;
+
+  <!-- Import map so example modules can resolve "three" -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
       }
-    }
-    
-    // Function to load Three.js with fallback
-    function loadThreeJS() {
-      updateLoadingStatus('Loading Three.js library...');
-      const script1 = document.createElement('script');
-      script1.src = 'https://unpkg.com/three@0.158.0/build/three.min.js';
-      script1.onload = function() {
-        console.log('Three.js loaded from primary CDN');
-        updateLoadingStatus('Three.js loaded successfully!');
-        loadOrbitControls();
-      };
-      script1.onerror = function() {
-        console.log('Primary CDN failed, trying fallback...');
-        updateLoadingStatus('Primary CDN failed, trying fallback...');
-        loadThreeJSFallback();
-      };
-      document.head.appendChild(script1);
-    }
-    
-    function loadThreeJSFallback() {
-      updateLoadingStatus('Loading Three.js from fallback CDN...');
-      const script2 = document.createElement('script');
-      script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js';
-      script2.onload = function() {
-        console.log('Three.js loaded from fallback CDN');
-        updateLoadingStatus('Three.js loaded from fallback!');
-        loadOrbitControls();
-      };
-      script2.onerror = function() {
-        console.error('All CDNs failed');
-        updateLoadingStatus('All CDNs failed to load Three.js');
-        document.getElementById('loading').innerHTML = '<p style="color: red;">Error: Unable to load Three.js from any source. Please check your internet connection.</p>';
-      };
-      document.head.appendChild(script2);
-    }
-    
-    function loadOrbitControls() {
-      updateLoadingStatus('Loading camera controls...');
-      const script3 = document.createElement('script');
-      script3.src = 'https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js';
-      script3.onload = function() {
-        console.log('OrbitControls loaded');
-        updateLoadingStatus('Camera controls loaded!');
-        // Load our main script first, then initialize
-        loadMainScript();
-      };
-      script3.onerror = function() {
-        console.log('OrbitControls failed, trying fallback...');
-        updateLoadingStatus('Camera controls failed, trying fallback...');
-        loadOrbitControlsFallback();
-      };
-      document.head.appendChild(script3);
-    }
-    
-    function loadOrbitControlsFallback() {
-      updateLoadingStatus('Loading camera controls from fallback...');
-      const script4 = document.createElement('script');
-      script4.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js';
-      script4.onload = function() {
-        console.log('OrbitControls loaded from fallback');
-        updateLoadingStatus('Camera controls loaded from fallback!');
-        loadMainScript();
-      };
-      script4.onerror = function() {
-        console.error('OrbitControls failed to load');
-        updateLoadingStatus('Camera controls failed to load');
-        // Still try to load main script
-        loadMainScript();
-      };
-      document.head.appendChild(script4);
-    }
-    
-    function loadMainScript() {
-      updateLoadingStatus('Loading main application...');
-      const mainScript = document.createElement('script');
-      mainScript.src = 'script.js';
-      mainScript.onload = function() {
-        console.log('Main script loaded');
-        updateLoadingStatus('Main application loaded!');
-        // Wait a bit for the script to initialize, then call init
-        setTimeout(() => {
-          if (typeof init === 'function') {
-            updateLoadingStatus('Initializing 3D scene...');
-            init();
-          } else {
-            console.error('init function not found!');
-            updateLoadingStatus('Error: init function not found');
-          }
-        }, 100);
-      };
-      mainScript.onerror = function() {
-        console.error('Main script failed to load');
-        updateLoadingStatus('Error: Main script failed to load');
-      };
-      document.head.appendChild(mainScript);
-    }
-    
-    // Start loading when DOM is ready
-    document.addEventListener('DOMContentLoaded', function() {
-      updateLoadingStatus('Starting to load libraries...');
-      loadThreeJS();
-      
-      // Fallback: if loading takes too long, try to load script.js directly
-      setTimeout(() => {
-        if (typeof THREE === 'undefined') {
-          updateLoadingStatus('Loading taking too long, trying fallback...');
-          // Try to load script.js directly as a last resort
-          const fallbackScript = document.createElement('script');
-          fallbackScript.src = 'script.js';
-          fallbackScript.onload = function() {
-            updateLoadingStatus('Fallback script loaded, trying to initialize...');
-            if (typeof init === 'function') {
-              init();
-            }
-          };
-          document.head.appendChild(fallbackScript);
-        }
-      }, 10000); // 10 second timeout
-    });
-  </script>
-  
-  <!-- Add loading error handling -->
-  <script>
-    window.addEventListener('error', function(e) {
-      console.error('Script loading error:', e);
-      document.getElementById('loading').innerHTML = '<p style="color: red;">Error loading scripts. Please refresh the page.</p>';
-    });
-    
-    // Check if Three.js loaded
-    window.addEventListener('load', function() {
-      if (typeof THREE === 'undefined') {
-        console.error('Three.js failed to load!');
-        document.getElementById('loading').innerHTML = '<p style="color: red;">Error: Three.js library failed to load. Please refresh the page or check your internet connection.</p>';
-      } else {
-        console.log('Three.js loaded successfully!');
-        // Hide loading screen once everything is ready
-        setTimeout(() => {
-          const loading = document.getElementById('loading');
-          if (loading) {
-            loading.style.display = 'none';
-          }
-        }, 1000);
-      }
-    });
-    
-    // Alternative loading method with timeout
-    setTimeout(() => {
-      if (typeof THREE === 'undefined') {
-        console.error('Three.js still not loaded after timeout');
-        document.getElementById('loading').innerHTML = '<p style="color: red;">Error: Three.js library failed to load. Please refresh the page or check your internet connection.</p>';
-      }
-    }, 5000);
-    
-    // Add offline fallback message
-    if (!navigator.onLine) {
-      document.getElementById('loading').innerHTML = '<p style="color: red;">You appear to be offline. Please check your internet connection and refresh the page.</p>';
     }
   </script>
+
+  <!-- Three.js (ESM) + OrbitControls -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
