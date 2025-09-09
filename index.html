@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🧩 3D Rubik's Cube – Three.js</title>
+  <title>🧩 3D Rubik's Cube Solver</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' ry='16' fill='%231a2236'/%3E%3Crect x='10' y='10' width='35' height='35' fill='%2351a8ff'/%3E%3Crect x='55' y='10' width='35' height='35' fill='%2322c55e'/%3E%3Crect x='10' y='55' width='35' height='35' fill='%23f59e0b'/%3E%3Crect x='55' y='55' width='35' height='35' fill='%23ef4444'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,8 +13,8 @@
 <body>
   <div id="app">
     <aside id="panel">
-      <h1>🧩 3D Rubik's Cube</h1>
-      <div class="sub">Computer Graphics project – interactive layer rotations with animation, scramble & algorithm playback. Ready for GitHub Pages.</div>
+      <h1>🧩 3D Rubik's Cube Solver</h1>
+      <div class="sub">Interactive 3D Rubik’s Cube Solver</div>
 
       <div class="row">
         <button class="btn" data-mv="R">R</button>
@@ -47,6 +47,10 @@
         <button class="btn warn" id="undo">Undo</button>
         <button class="btn" id="play-seq">Play Algorithm</button>
       </div>
+      
+      <div class="row section">
+        <button class="btn" style="width: 100%; font-size: 16px; padding: 12px;" id="solve-cube">🧩 Solve Cube</button>
+      </div>
 
       <div class="section">
         <label for="alg">Algorithm (space-separated, e.g. <span class="kbd">R U R' U'</span>)</label>
@@ -60,13 +64,13 @@
       </div>
 
       <div class="section hint">
-        <div><strong>Notes</strong></div>
+        <div><strong>Highlights</strong></div>
         <ul>
-          <li>True layer rotations (not whole-cube). Cubies are regrouped per move and state is updated.</li>
-          <li>Clean animation with easing. Robust floating-point tolerances.</li>
-          <li>Use this page as-is on GitHub Pages (single HTML file).</li>
+          <li>Play with a 3D Rubik’s Cube in your browser 🎲</li>
+          <li>Rotate layers using standard moves (R, L, U, D, F, B).</li>
+          <li>Scramble & watch algorithms come alive with animations!</li>
         </ul>
-      </div>
+      </div>      
     </aside>
 
     <main id="canvas-wrap">
@@ -83,6 +87,9 @@
       }
     }
   </script>
+
+  <!-- Cubejs Library -->
+  <script src="https://cdn.jsdelivr.net/npm/cubejs/lib/cube.min.js"></script>
 
   <!-- Three.js (ESM) + OrbitControls -->
   <script type="module" src="script.js"></script>

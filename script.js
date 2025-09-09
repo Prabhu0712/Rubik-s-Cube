@@ -41,6 +41,11 @@ const cubeRoot = new THREE.Group();
 scene.add(cubeRoot);
 
 // Materials for face stickers in order: +X (R), -X (L), +Y (U), -Y (D), +Z (F), -Z (B)
+// Color-to-number mapping (as requested): yellow=0, red=1, green=2, blue=3, white=4, orange=5
+export const COLOR_TO_NUMBER = { yellow: 0, red: 1, green: 2, blue: 3, white: 4, orange: 5 };
+export const NUMBER_TO_COLOR = Object.fromEntries(Object.entries(COLOR_TO_NUMBER).map(([k,v])=>[v,k]));
+export const FACE_TO_COLOR = { U:'white', D:'yellow', R:'red', L:'orange', F:'green', B:'blue' };
+export const FACE_TO_NUMBER = Object.fromEntries(Object.entries(FACE_TO_COLOR).map(([f,name])=>[f, COLOR_TO_NUMBER[name]]));
 const col = { R: 0xff3b30, L: 0xf97316, U: 0xffffff, D: 0xffdd00, F: 0x34c759, B: 0x0a84ff };
 const stickerMat = {
 	R: new THREE.MeshBasicMaterial({ color: col.R, side: THREE.DoubleSide }),
@@ -109,7 +114,19 @@ function enqueueMoves(seq, options={}){
 	// parse like "R U R' U'" or ["R","U",...]
 	if(typeof seq === 'string') seq = seq.trim().split(/\s+/).filter(Boolean);
 	const shouldLog = options.log !== false;
-	for(const mv of seq) queue.push({ mv, log: shouldLog });
+	
+	// Filter out invalid moves
+	const validMoves = [];
+	for(const mv of seq) {
+		try {
+			mvAxisLayer(mv); // Test if move is valid
+			validMoves.push({ mv, log: shouldLog });
+		} catch(e) {
+			console.warn(`Invalid move ignored: ${mv}`);
+		}
+	}
+	
+	for(const move of validMoves) queue.push(move);
 	runQueue();
 }
 
@@ -235,6 +252,17 @@ const algEl = document.getElementById('alg');
 function updateLog(mv){
 	logEl.value += (logEl.value? ' ':'') + mv;
 	logEl.scrollTop = logEl.scrollHeight;
+	
+	// Auto-sync virtual cube state when moves are logged
+	if (virtualCube && mv && mv.trim() !== '') {
+		try {
+			// Apply the move to virtual cube
+			virtualCube.move(mv.trim());
+			console.log('Synced move to virtual cube:', mv);
+		} catch (e) {
+			console.error('Failed to sync move to virtual cube:', e);
+		}
+	}
 }
 
 document.querySelectorAll('[data-mv]').forEach(btn=>{
@@ -242,22 +270,47 @@ document.querySelectorAll('[data-mv]').forEach(btn=>{
 });
 
 document.getElementById('play-seq').addEventListener('click', ()=>{
-	const seq = algEl.value.trim(); if(seq) enqueueMoves(seq);
+	const seq = algEl.value.trim(); 
+	if(seq) {
+		enqueueMoves(seq);
+	} else {
+		// Provide user feedback when algorithm is empty
+		algEl.focus();
+		algEl.style.borderColor = 'var(--err)';
+		setTimeout(() => {
+			algEl.style.borderColor = '';
+		}, 1000);
+	}
 });
 
 document.getElementById('undo').addEventListener('click', ()=>{
 	if(isAnimating) return;
 	// Simple undo = inverse of last move (approx; does not collapse R2). For demonstration.
-	const txt = logEl.value.trim(); if(!txt) return;
-	const arr = txt.split(/\s+/); const last = arr.pop();
-	const inv = last.endsWith("'") ? last.slice(0,-1) : last.endsWith('2') ? last : last+"'";
+	const txt = logEl.value.trim(); 
+	if(!txt) return;
+	
+	const arr = txt.split(/\s+/); 
+	const last = arr.pop();
+	
+	// Handle inverse moves properly
+	let inv;
+	if(last.endsWith("'")) {
+		inv = last.slice(0, -1); // R' -> R
+	} else if(last.endsWith('2')) {
+		inv = last; // R2 -> R2 (self-inverse)
+	} else {
+		inv = last + "'"; // R -> R'
+	}
+	
 	logEl.value = arr.join(' ');
-	enqueueMoves([inv], { log:false });
+	enqueueMoves([inv], { log: false });
 });
 
 document.getElementById('reset').addEventListener('click', ()=>{
 	// Reset scene to solved state
-	queue.length = 0; isAnimating = false; logEl.value='';
+	queue.length = 0; isAnimating = false; 
+	logEl.value = ''; // Clear move log
+	algEl.value = ''; // Clear algorithm textarea
 	for(const c of cubies){
 		// Ensure each cubie is directly under the cube root (detach from any pivot)
 		cubeRoot.attach(c.mesh);
@@ -274,33 +327,50 @@ document.getElementById('reset').addEventListener('click', ()=>{
 
 const MOVES = ['R','R\'','R2','L','L\'','L2','U','U\'','U2','D','D\'','D2','F','F\'','F2','B','B\'','B2'];
 function randomScramble(n=25){
-	const seq=[]; let lastAxis='';
+	const seq = []; 
+	let lastAxis = '';
+	let attempts = 0;
+	const maxAttempts = 100; // Prevent infinite loops
+	
 	const axisOf = m => ({R:'x','R\'':'x','R2':'x', L:'x','L\'':'x','L2':'x', U:'y','U\'':'y','U2':'y', D:'y','D\'':'y','D2':'y', F:'z','F\'':'z','F2':'z', B:'z','B\'':'z','B2':'z'})[m];
-	while(seq.length<n){
-		const m = MOVES[Math.floor(Math.random()*MOVES.length)];
+	
+	while(seq.length < n && attempts < maxAttempts){
+		const m = MOVES[Math.floor(Math.random() * MOVES.length)];
 		const ax = axisOf(m);
-		if(ax===lastAxis) continue; // avoid same-axis consecutive moves
-		seq.push(m); lastAxis = ax;
+		if(ax === lastAxis) {
+			attempts++;
+			continue; // avoid same-axis consecutive moves
+		}
+		seq.push(m); 
+		lastAxis = ax;
+		attempts = 0; // Reset attempts counter on successful move
 	}
 	return seq;
 }
 document.getElementById('scramble').addEventListener('click', ()=>{
-	const seq = randomScramble(25); algEl.value = seq.join(' '); enqueueMoves(seq);
-});
-
-// Keyboard handler: R, L, U, D, F, B with optional ' or 2
-window.addEventListener('keydown', (e)=>{
-	if(isAnimating) return; // avoid stacking during animation from keyboard
-	const key = e.key.toLowerCase();
-	const prime = e.shiftKey; // Shift+key = prime
-	if('rludfb'.includes(key)){
-		const mv = key.toUpperCase() + (prime?"'":'');
-		enqueueMoves([mv]);
-	} else if(e.key==='2'){
-		// apply double turn for last axis key pressed (look at last char in log or alg focus)
-		// simpler: if an axis key is down, ignore here; provide UI buttons for exact 2-turns
+	const seq = randomScramble(25); 
+	algEl.value = seq.join(' '); 
+	enqueueMoves(seq);
+	
+	// Initialize virtual cube for solving
+	if (!virtualCube) {
+		initVirtualCube();
 	}
 });
+
+// Enhanced scramble function that also updates virtual cube
+function enhancedScramble() {
+	const seq = randomScramble(25);
+	algEl.value = seq.join(' ');
+	enqueueMoves(seq);
+	
+	// Initialize virtual cube if needed
+	if (!virtualCube) {
+		initVirtualCube();
+	}
+	
+	console.log('Scrambled cube with moves:', seq);
+}
 
 // FPS meter (simple)
 const fpsEl = document.getElementById('fps');
@@ -312,3 +382,204 @@ function fpsTick(){
 	requestAnimationFrame(fpsTick);
 }
 requestAnimationFrame(fpsTick);
+
+// =====================
+// Cube Solver Integration
+// =====================
+
+// Virtual cube for solving
+let virtualCube = null;
+
+// Initialize virtual cube
+function initVirtualCube() {
+    try {
+        if (typeof Cube !== 'undefined') {
+            virtualCube = new Cube();
+            console.log('Virtual cube initialized');
+            return true;
+        } else {
+            console.error('Cube library not loaded');
+            return false;
+        }
+    } catch (e) {
+        console.error('Failed to initialize virtual cube:', e);
+        return false;
+    }
+}
+
+// Convert current 3D cube state to virtual cube
+function syncCubeState() {
+    if (!virtualCube) return false;
+    
+    try {
+        // Reset virtual cube to solved state
+        virtualCube = new Cube();
+        
+        // Get moves from log and apply them to virtual cube
+        const moves = logEl.value.trim().split(/\s+/).filter(Boolean);
+        if (moves.length > 0) {
+            virtualCube.move(moves.join(' '));
+            console.log('Applied moves to virtual cube:', moves);
+        }
+        return true;
+    } catch (e) {
+        console.error('Failed to sync cube state:', e);
+        return false;
+    }
+}
+
+// Try to extract a state string from the virtual cube for different libraries
+function getCubeStateString() {
+    if (!virtualCube) return null;
+    try {
+        if (typeof virtualCube.asString === 'function') return virtualCube.asString();
+        if (typeof virtualCube.toString === 'function') return virtualCube.toString();
+        if (typeof virtualCube.state === 'function') return virtualCube.state();
+        if (typeof virtualCube.getState === 'function') return virtualCube.getState();
+    } catch (e) {
+        console.warn('Unable to read cube state string:', e);
+    }
+    return null;
+}
+
+// Attempt to solve using any available API shape
+function trySolveWithAvailableApis() {
+    // 1) Instance method: virtualCube.solve()
+    if (virtualCube && typeof virtualCube.solve === 'function') {
+        return virtualCube.solve();
+    }
+
+    // 2) Static/namespace solvers that take a state string
+    const state = getCubeStateString();
+    if (state) {
+        // Cube.solve(state)
+        if (typeof Cube !== 'undefined' && typeof Cube.solve === 'function') {
+            return Cube.solve(state);
+        }
+        // cubejs.solve(state)
+        if (typeof window !== 'undefined' && window.cubejs && typeof window.cubejs.solve === 'function') {
+            return window.cubejs.solve(state);
+        }
+        // global solve(state)
+        if (typeof window !== 'undefined' && typeof window.solve === 'function') {
+            return window.solve(state);
+        }
+    }
+
+    throw new Error('No compatible solve() API found in loaded cube library.');
+}
+
+// Apply a single move to the 3D cube
+function applyMove(move) {
+    if (!move || move.trim() === '') return;
+    
+    console.log('Applying move:', move);
+    enqueueMoves([move.trim()], { log: true });
+}
+
+// Solve the cube using cubejs
+async function solveCube() {
+    console.log('Starting cube solve...');
+    
+    // Check if cube is already solved
+    if (isCubeSolved()) {
+        alert('Cube is already solved! 🎉');
+        return;
+    }
+    
+    // Initialize virtual cube if needed
+    if (!virtualCube) {
+        if (!initVirtualCube()) {
+            alert('Cube solver library not available. Please refresh the page.');
+            return;
+        }
+    }
+    
+    // Sync current state to virtual cube
+    if (!syncCubeState()) {
+        alert('Failed to sync cube state. Please try again.');
+        return;
+    }
+    
+    try {
+        // Check if cube is solvable (only if the library provides this method)
+        if (typeof virtualCube.isSolvable === 'function') {
+            if (!virtualCube.isSolvable()) {
+                alert('This cube state is not solvable! Please reset and try again.');
+                return;
+            }
+        }
+        
+        // Generate solution
+        console.log('Generating solution...');
+        const solution = trySolveWithAvailableApis();
+        
+        if (!solution || solution.trim() === '') {
+            alert('No solution found. The cube might be in an unsolvable state.');
+            return;
+        }
+        
+        console.log('Solution found:', solution);
+        
+        // Display solution in algorithm textarea
+        algEl.value = solution;
+        
+        // Apply solution step by step
+        const moves = solution.split(/\s+/).filter(Boolean);
+        
+        if (moves.length > 0) {
+            // Clear any existing moves in queue
+            queue.length = 0;
+            
+            // Add solution moves to queue
+            enqueueMoves(moves, { log: false });
+            
+            // Do not write non-move text into the move log; just inform via console
+            console.log(`🧩 Solution applied: ${moves.length} moves`);
+            
+            console.log(`Applying ${moves.length} moves to solve cube`);
+        } else {
+            alert('No moves in solution. Cube might already be solved.');
+        }
+        
+    } catch (e) {
+        console.error('Solve error:', e);
+        
+        // Provide more specific error messages
+        if (e.message.includes('unsolvable')) {
+            alert('This cube state is not solvable! Please reset the cube and try again.');
+        } else if (e.message.includes('timeout')) {
+            alert('Solution generation timed out. Please try again.');
+        } else {
+            alert('Failed to solve cube: ' + e.message);
+        }
+    }
+}
+
+// Check if cube is solved
+function isCubeSolved() {
+    for (const c of cubies) {
+        if (c.pos[0] !== c.home[0] || c.pos[1] !== c.home[1] || c.pos[2] !== c.home[2]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Add solve button event listener
+const solveBtn = document.getElementById('solve-cube');
+if (solveBtn) {
+    solveBtn.addEventListener('click', async () => {
+        if (isAnimating) {
+            alert('Please wait for current animation to finish.');
+            return;
+        }
+        
+        solveBtn.disabled = true;
+        try {
+            await solveCube();
+        } finally {
+            solveBtn.disabled = false;
+        }
+    });
+}
