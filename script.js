@@ -506,6 +506,7 @@ function isCubeSolved() {
 const solveBtn = document.getElementById('solve-cube');
 if (solveBtn) {
     solveBtn.addEventListener('click', async () => {
+        console.log('Solve button clicked');
         if (isAnimating) {
             alert('Please wait for current animation to finish.');
             return;
@@ -518,4 +519,6 @@ if (solveBtn) {
             solveBtn.disabled = false;
         }
     });
+} else {
+    console.error('Solve button not found!');
 }
